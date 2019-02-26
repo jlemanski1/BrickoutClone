@@ -6,8 +6,8 @@ A clone of the classic Brickout game in using C, GTK for a window context, OpenG
        * Display Gameover text on screen
        * Display score on screen
        * Press space to go back to start screen
-       * Implement Game states for game, gamover, and start
-    * Start Screen
+       * Implement Game states for game, gamover, and startscreen
+   * Start Screen
        * Press space to enter into game state
        * Display last 5 scores and the highest score from the playsession
     
