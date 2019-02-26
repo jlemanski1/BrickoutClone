@@ -1,6 +1,7 @@
 #include <epoxy/gl.h>
 #include <epoxy/glx.h>
 #include <gtk-3.0/gtk/gtk.h>
+#include <math.h>
 #include "DashGL/dashgl.h"
 
 #define WIDTH 640.0f
@@ -11,7 +12,7 @@ static void on_realize(GtkGLArea*area);
 static void on_render(GtkGLArea *area, GdkGLContext *context);
 
 GLuint program;
-GLuint vao, vbo_triangle;
+GLuint vao, vbo_circle;
 GLint attribute_coord2d;
 
 int main(int argc, char *argv[]) {
@@ -69,18 +70,33 @@ static void on_realize(GtkGLArea *area) {
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
 
-	GLfloat triangle_vertices[] = {
-		 20.0, 10.0,
-		 50.0, 90.0,
-		 80.0, 10.0
-	};
-	
-	glGenBuffers(1, &vbo_triangle);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_triangle);
+    int i;
+    float angle, nextAngle;
+    int num_segments = 100;
+
+    GLfloat circle_vertices[6 * 100];
+
+    for (i = 0; i < num_segments; i++) {
+        angle = i * 2.0f * M_PI / (num_segments - 1);
+        nextAngle = (i + 1) * 2.0f * M_PI / (num_segments - 1);
+
+        circle_vertices[i * 6 + 0] = cos(angle) * 20;
+        circle_vertices[i * 6 + 1] = sin(angle) * 20;
+
+		circle_vertices[i*6 + 2] = cos(nextAngle) * 20;
+		circle_vertices[i*6 + 3] = sin(nextAngle) * 20;
+
+		circle_vertices[i*6 + 4] = 0.0f;
+		circle_vertices[i*6 + 5] = 0.0f;
+
+	}
+
+	glGenBuffers(1, &vbo_circle);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_circle);
 	glBufferData(
 		GL_ARRAY_BUFFER,
-		sizeof(triangle_vertices),
-		triangle_vertices,
+		sizeof(circle_vertices),
+		circle_vertices,
 		GL_STATIC_DRAW
 	);
 
@@ -107,11 +123,24 @@ static void on_realize(GtkGLArea *area) {
         return;
     }
 
+    uniform_name = "mvp";
+	GLint uniform_mvp = glGetUniformLocation(program, uniform_name);
+	if(uniform_mvp == -1) {
+		fprintf(stderr, "Could not bind uniform %s\n", uniform_name);
+		return;
+	}
+
     glUseProgram(program);
 
     mat4 orthograph;
     mat4_orthagonal(WIDTH, HEIGHT, orthograph);
     glUniformMatrix4fv(uniform_ortho, 1, GL_FALSE, orthograph);
+
+    vec3 pos = { 50.0f, 50.0f, 0.0f };
+    mat4 mvp;
+    mat4_translate(pos, mvp);
+
+    glUniformMatrix4fv(uniform_mvp, 1, GL_FALSE, mvp);
 }
 
 
@@ -126,7 +155,7 @@ static void on_render(GtkGLArea *area, GdkGLContext *context) {
 	glBindVertexArray(vao);
 	glEnableVertexAttribArray(attribute_coord2d);
 
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_triangle);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_circle);
 	glVertexAttribPointer(
 		attribute_coord2d,
 		2,
@@ -136,7 +165,7 @@ static void on_render(GtkGLArea *area, GdkGLContext *context) {
 		0
 	);
 
-	glDrawArrays(GL_TRIANGLES, 0, 3);
+	glDrawArrays(GL_TRIANGLES, 0, 3 * 100);
 	glDisableVertexAttribArray(attribute_coord2d);
 
 }
