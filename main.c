@@ -1,6 +1,10 @@
 #include <epoxy/gl.h>
 #include <epoxy/glx.h>
 #include <gtk-3.0/gtk/gtk.h>
+#include "DashGL/dashgl.h"
+
+#define WIDTH 640.0f
+#define HEIGHT 480.0f
 
 // Function Prototypes
 static void on_realize(GtkGLArea*area);
@@ -22,7 +26,7 @@ int main(int argc, char *argv[]) {
     window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(window), "Brickout Clone");
     gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
-    gtk_window_set_default_size(GTK_WINDOW(window), 640, 480);
+    gtk_window_set_default_size(GTK_WINDOW(window), WIDTH, HEIGHT);
     gtk_window_set_type_hint(GTK_WINDOW(window), GDK_WINDOW_TYPE_HINT_UTILITY);
     g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 
@@ -40,6 +44,7 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+
 
 static void on_realize(GtkGLArea *area) {
 
@@ -65,9 +70,9 @@ static void on_realize(GtkGLArea *area) {
 	glBindVertexArray(vao);
 
 	GLfloat triangle_vertices[] = {
-		 0.0,  0.8,
-		-0.8, -0.8,
-		 0.8, -0.8
+		 20.0, 10.0,
+		 50.0, 90.0,
+		 80.0, 10.0
 	};
 	
 	glGenBuffers(1, &vbo_triangle);
@@ -83,51 +88,10 @@ static void on_realize(GtkGLArea *area) {
 	glEnableVertexAttribArray(0);
 	glDisableVertexAttribArray(0);
 	
-	GLint compile_ok = GL_FALSE;
-	GLint link_ok = GL_FALSE;
-
-	const char *vs_source = 
-	"#version 120\n"
-	"attribute vec2 coord2d; \n"
-	"void main (void) {\n"
-	"	gl_Position = vec4(coord2d, 0.0, 1.0);\n"
-	"}";
-
-	const char *fs_source =
-	"#version 120\n"
-	"void main (void) {\n"
-	"	gl_FragColor[0] = 0.0;\n"
-	"	gl_FragColor[1] = 0.0;\n"
-	"	gl_FragColor[2] = 1.0;\n"
-	"}";
-
-	GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(fs, 1, &fs_source, NULL);
-	glCompileShader(fs);
-	glGetShaderiv(fs, GL_COMPILE_STATUS, &compile_ok);
-	if(!compile_ok) {
-		fprintf(stderr, "Error in fragment shader\n");
-		return;
-	}
-
-	GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vs, 1, &vs_source, NULL);
-	glCompileShader(vs);
-	glGetShaderiv(vs, GL_COMPILE_STATUS, &compile_ok);
-	if(!compile_ok) {
-		fprintf(stderr, "Error in vertex shader\n");
-		return;
-	}
-
-	program = glCreateProgram();
-	glAttachShader(program, vs);
-	glAttachShader(program, fs);
-	glLinkProgram(program);
-	glGetProgramiv(program, GL_LINK_STATUS, &link_ok);
-	if(!link_ok) {
-		fprintf(stderr, "Error when linking program\n");
-		return;
-	}
+    // Load Shaders
+    const char *vs = "shaders/vertex.glsl";     //Vertex shader
+    const char *fs = "shaders/fragment.glsl";   //Frament shader
+    program = shader_load_program(vs, fs);
 
 	const char *attribute_name = "coord2d";
 	attribute_coord2d = glGetAttribLocation(program, attribute_name);
@@ -135,7 +99,21 @@ static void on_realize(GtkGLArea *area) {
 		fprintf(stderr, "Could not bind attribute %s\n", attribute_name);
 		return;
 	}
+
+    const char *uniform_name = "orthograph";
+    GLint uniform_ortho = glGetUniformLocation(program, uniform_name);
+    if (uniform_ortho == -1) {
+        fprintf(stderr, "Could not bund uniform %s\n", uniform_name);
+        return;
+    }
+
+    glUseProgram(program);
+
+    mat4 orthograph;
+    mat4_orthagonal(WIDTH, HEIGHT, orthograph);
+    glUniformMatrix4fv(uniform_ortho, 1, GL_FALSE, orthograph);
 }
+
 
 static void on_render(GtkGLArea *area, GdkGLContext *context) {
 
