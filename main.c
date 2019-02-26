@@ -107,7 +107,6 @@ int main(int argc, char *argv[]) {
     Returns:
 */
 static void on_realize(GtkGLArea *area) {
-
 	// Debug Message
 	g_print("on realize\n");
 
@@ -263,7 +262,7 @@ static void on_realize(GtkGLArea *area) {
 	ball.dx = 2.0f;
 	ball.dy = 3.0f;
     // Set ball position
-    ball.pos[0] = 50.0f;
+    ball.pos[0] = 20.0f;
     ball.pos[1] = 50.0f;
     ball.pos[2] = 0.0f;
     // Set ball colour
@@ -427,7 +426,7 @@ static gboolean on_idle(gpointer data) {
 			bricks.on[i] = FALSE;	// Disable brick
 			ball.dy *= -1.025;		// Speed up ball
 			paddle.score += (100 * ABS(ball.dy));	// Add to score
-			printf("Score: %d\n", paddle.score);
+			printf("Score: %d\n", paddle.score);	//DEBUG MSG score
 		}
 
 	}
