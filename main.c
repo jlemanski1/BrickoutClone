@@ -10,10 +10,16 @@
 // Function Prototypes
 static void on_realize(GtkGLArea*area);
 static void on_render(GtkGLArea *area, GdkGLContext *context);
+static gboolean on_idle(gpointer data);
+
+float dx, dy;
+vec3 pos = {50.0f, 50.0f, 0.0f };
+mat4 mvp;
 
 GLuint program;
 GLuint vao, vbo_circle;
 GLint attribute_coord2d;
+GLint uniform_mvp;
 
 int main(int argc, char *argv[]) {
 
@@ -61,7 +67,9 @@ static void on_realize(GtkGLArea *area) {
 
 	const GLubyte *renderer = glGetString(GL_RENDER);
 	const GLubyte *version = glGetString(GL_VERSION);
+	const GLubyte *shader = glGetString(GL_SHADING_LANGUAGE_VERSION);
 
+	printf("Shader %s\n", shader);
 	printf("Renderer: %s\n", renderer);
 	printf("OpenGL version supported %s\n", version);
 
@@ -70,18 +78,19 @@ static void on_realize(GtkGLArea *area) {
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
 
-    int i;
-    float angle, nextAngle;
-    int num_segments = 100;
+	int i;
+	float angle, nextAngle;
+	int num_segments = 100;
 
-    GLfloat circle_vertices[6 * 100];
+	GLfloat circle_vertices[6 * 100];
+	
+	for(i = 0; i < num_segments; i++) {
 
-    for (i = 0; i < num_segments; i++) {
-        angle = i * 2.0f * M_PI / (num_segments - 1);
-        nextAngle = (i + 1) * 2.0f * M_PI / (num_segments - 1);
+		angle = i * 2.0f * M_PI / (num_segments - 1);
+		nextAngle = (i+1) * 2.0f * M_PI / (num_segments - 1);
 
-        circle_vertices[i * 6 + 0] = cos(angle) * 20;
-        circle_vertices[i * 6 + 1] = sin(angle) * 20;
+		circle_vertices[i*6 + 0] = cos(angle) * 20;
+		circle_vertices[i*6 + 1] = sin(angle) * 20;
 
 		circle_vertices[i*6 + 2] = cos(nextAngle) * 20;
 		circle_vertices[i*6 + 3] = sin(nextAngle) * 20;
@@ -104,10 +113,11 @@ static void on_realize(GtkGLArea *area) {
 	glEnableVertexAttribArray(0);
 	glDisableVertexAttribArray(0);
 	
-    // Load Shaders
-    const char *vs = "shaders/vertex.glsl";     //Vertex shader
-    const char *fs = "shaders/fragment.glsl";   //Frament shader
-    program = shader_load_program(vs, fs);
+    // Declare pointer to shaders
+	const char *vs = "shaders/vertex.glsl";
+	const char *fs = "shaders/fragment.glsl";
+
+	program = shader_load_program(vs, fs);  // Load shader
 
 	const char *attribute_name = "coord2d";
 	attribute_coord2d = glGetAttribLocation(program, attribute_name);
@@ -116,41 +126,39 @@ static void on_realize(GtkGLArea *area) {
 		return;
 	}
 
-    const char *uniform_name = "orthograph";
-    GLint uniform_ortho = glGetUniformLocation(program, uniform_name);
-    if (uniform_ortho == -1) {
-        fprintf(stderr, "Could not bund uniform %s\n", uniform_name);
-        return;
-    }
-
-    uniform_name = "mvp";
-	GLint uniform_mvp = glGetUniformLocation(program, uniform_name);
+	const char *uniform_name = "orthograph";
+	GLint uniform_ortho = glGetUniformLocation(program, uniform_name);
+	if(uniform_ortho == -1) {
+		fprintf(stderr, "Could not bind uniform %s\n", uniform_name);
+		return;
+	}
+	
+	uniform_name = "mvp";
+	uniform_mvp = glGetUniformLocation(program, uniform_name);
 	if(uniform_mvp == -1) {
 		fprintf(stderr, "Could not bind uniform %s\n", uniform_name);
 		return;
 	}
 
-    glUseProgram(program);
+	glUseProgram(program);
 
-    mat4 orthograph;
-    mat4_orthagonal(WIDTH, HEIGHT, orthograph);
-    glUniformMatrix4fv(uniform_ortho, 1, GL_FALSE, orthograph);
+	mat4 orthograph;
+	mat4_orthagonal(WIDTH, HEIGHT, orthograph);
 
-    vec3 pos = { 50.0f, 50.0f, 0.0f };
-    mat4 mvp;
-    mat4_translate(pos, mvp);
+	glUniformMatrix4fv(uniform_ortho, 1, GL_FALSE, orthograph);
+	g_timeout_add(20, on_idle, (void*)area);
+	
+	dx = 2.0f;
+	dy = 3.0f;
 
-    glUniformMatrix4fv(uniform_mvp, 1, GL_FALSE, mvp);
 }
 
 
 static void on_render(GtkGLArea *area, GdkGLContext *context) {
-
-	g_print("on render\n");
-
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	glUseProgram(program);
+    
+	mat4_translate(pos, mvp);
+	glUniformMatrix4fv(uniform_mvp, 1, GL_FALSE, mvp);
 
 	glBindVertexArray(vao);
 	glEnableVertexAttribArray(attribute_coord2d);
@@ -167,5 +175,28 @@ static void on_render(GtkGLArea *area, GdkGLContext *context) {
 
 	glDrawArrays(GL_TRIANGLES, 0, 3 * 100);
 	glDisableVertexAttribArray(attribute_coord2d);
+}
 
+static gboolean on_idle(gpointer data) {
+    pos[0] += dx;
+    pos[1] += dy;
+
+    if (pos[0] > WIDTH) {
+        pos[0] = WIDTH;
+        dx *= -1;
+    } else if (pos[0] < 0) {
+        pos[0] = 0;
+        dx *= -1;
+    }
+
+    if (pos[1] > HEIGHT) {
+        pos[1] = HEIGHT;
+        dy *= -1;
+    } else if (pos[1] < 0) {
+        pos[1] = 0;
+        dy *= -1;
+    }
+
+    gtk_widget_queue_draw(GTK_WIDGET(data));
+    return TRUE;
 }
