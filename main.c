@@ -12,12 +12,16 @@ static void on_realize(GtkGLArea*area);
 static void on_render(GtkGLArea *area, GdkGLContext *context);
 static gboolean on_idle(gpointer data);
 
-float dx, dy;
-vec3 pos = {50.0f, 50.0f, 0.0f };
-mat4 mvp;
+// Ball Struct
+struct {
+    float dx, dy;
+    vec3 pos;
+    mat4 mvp;
+    GLuint vbo_circle;
+} ball;
 
 GLuint program;
-GLuint vao, vbo_circle;
+GLuint vao;
 GLint attribute_coord2d;
 GLint uniform_mvp;
 
@@ -56,7 +60,6 @@ int main(int argc, char *argv[]) {
 static void on_realize(GtkGLArea *area) {
 
 	// Debug Message
-
 	g_print("on realize\n");
 
 	gtk_gl_area_make_current(area);
@@ -100,8 +103,8 @@ static void on_realize(GtkGLArea *area) {
 
 	}
 
-	glGenBuffers(1, &vbo_circle);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_circle);
+	glGenBuffers(1, &ball.vbo_circle);
+	glBindBuffer(GL_ARRAY_BUFFER, ball.vbo_circle);
 	glBufferData(
 		GL_ARRAY_BUFFER,
 		sizeof(circle_vertices),
@@ -148,22 +151,26 @@ static void on_realize(GtkGLArea *area) {
 	glUniformMatrix4fv(uniform_ortho, 1, GL_FALSE, orthograph);
 	g_timeout_add(20, on_idle, (void*)area);
 	
-	dx = 2.0f;
-	dy = 3.0f;
+    // Start Ball off moving
+	ball.dx = 2.0f;
+	ball.dy = 3.0f;
+    ball.pos[0] = 50.0f;
+    ball.pos[1] = 50.0f;
+    ball.pos[2] = 0.0f;
 
 }
 
 
 static void on_render(GtkGLArea *area, GdkGLContext *context) {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    
-	mat4_translate(pos, mvp);
-	glUniformMatrix4fv(uniform_mvp, 1, GL_FALSE, mvp);
+
+	mat4_translate(ball.pos, ball.mvp);
+	glUniformMatrix4fv(uniform_mvp, 1, GL_FALSE, ball.mvp);
 
 	glBindVertexArray(vao);
 	glEnableVertexAttribArray(attribute_coord2d);
 
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_circle);
+	glBindBuffer(GL_ARRAY_BUFFER, ball.vbo_circle);
 	glVertexAttribPointer(
 		attribute_coord2d,
 		2,
@@ -178,23 +185,23 @@ static void on_render(GtkGLArea *area, GdkGLContext *context) {
 }
 
 static gboolean on_idle(gpointer data) {
-    pos[0] += dx;
-    pos[1] += dy;
+    ball.pos[0] += ball.dx;
+    ball.pos[1] += ball.dy;
 
-    if (pos[0] > WIDTH) {
-        pos[0] = WIDTH;
-        dx *= -1;
-    } else if (pos[0] < 0) {
-        pos[0] = 0;
-        dx *= -1;
+    if (ball.pos[0] > WIDTH) {
+        ball.pos[0] = WIDTH;
+        ball.dx *= -1;
+    } else if (ball.pos[0] < 0) {
+        ball.pos[0] = 0;
+        ball.dx *= -1;
     }
 
-    if (pos[1] > HEIGHT) {
-        pos[1] = HEIGHT;
-        dy *= -1;
-    } else if (pos[1] < 0) {
-        pos[1] = 0;
-        dy *= -1;
+    if (ball.pos[1] > HEIGHT) {
+        ball.pos[1] = HEIGHT;
+        ball.dy *= -1;
+    } else if (ball.pos[1] < 0) {
+        ball.pos[1] = 0;
+        ball.dy *= -1;
     }
 
     gtk_widget_queue_draw(GTK_WIDGET(data));
