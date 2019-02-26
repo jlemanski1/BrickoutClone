@@ -11,23 +11,31 @@
 static void on_realize(GtkGLArea*area);
 static void on_render(GtkGLArea *area, GdkGLContext *context);
 static gboolean on_idle(gpointer data);
+static gboolean on_keydown(GtkWidget *widget, GdkEventKey *event);
+static gboolean on_keyup(GtkWidget *widget, GdkEventKey *event);
 
 // Ball
 struct {
-    float dx, dy;
-    vec3 pos;
-    vec3 colour;
-    mat4 mvp;
+    float dx, dy;   // delta x, delta y
+    float r;        // Radius
+    vec3 pos;     // Position
+    vec3 colour;  // Colour
+    mat4 mvp;     
     GLuint vbo;
+    gboolean left, right, top, bottom;
 } ball;
 
 // Paddle
 struct {
-    float dx;
-    vec3 pos;
-    vec3 colour;
+    float width;    // Paddle width
+    float height;   // Paddle Height
+    float dx;       // delta x
+    vec3 pos;     // Position
+    vec3 colour;  // Colour
     mat4 mvp;
     GLuint vbo;
+    gboolean key_left;
+    gboolean key_right;
 } paddle;
 
 GLuint program;
@@ -36,8 +44,6 @@ GLint attribute_coord2d;
 GLint uniform_mvp, uniform_colour;
 
 int main(int argc, char *argv[]) {
-
-    //
     GtkWidget *window;
     GtkWidget *glArea;
 
@@ -50,6 +56,8 @@ int main(int argc, char *argv[]) {
     gtk_window_set_default_size(GTK_WINDOW(window), WIDTH, HEIGHT);
     gtk_window_set_type_hint(GTK_WINDOW(window), GDK_WINDOW_TYPE_HINT_UTILITY);
     g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
+    g_signal_connect(window, "key-press-event", G_CALLBACK(on_keydown), NULL);
+    g_signal_connect(window, "key-release-event", G_CALLBACK(on_keyup), NULL);
 
     // Initialize GTK GL Area
 	glArea = gtk_gl_area_new();
@@ -72,9 +80,10 @@ static void on_realize(GtkGLArea *area) {
 	// Debug Message
 	g_print("on realize\n");
 
+    // Set gtk glArea and handle unexpected errors
 	gtk_gl_area_make_current(area);
 	if(gtk_gl_area_get_error(area) != NULL) {
-		fprintf(stderr, "Unknown error\n");
+		fprintf(stderr, "ERROR: gtk_gl_area_make_current(area) failed\n");
 		return;
 	}
 
@@ -82,6 +91,7 @@ static void on_realize(GtkGLArea *area) {
 	const GLubyte *version = glGetString(GL_VERSION);
 	const GLubyte *shader = glGetString(GL_SHADING_LANGUAGE_VERSION);
 
+    // Display shader, renderer, and openGL versions
 	printf("Shader %s\n", shader);
 	printf("Renderer: %s\n", renderer);
 	printf("OpenGL version supported %s\n", version);
@@ -91,9 +101,11 @@ static void on_realize(GtkGLArea *area) {
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
 
+    ball.r = 18.0f;     // Set ball's radius
+
 	int i;
 	float angle, nextAngle;
-	int num_segments = 100;
+	int num_segments = 99;
 
 	GLfloat circle_vertices[6 * 100];
 	
@@ -102,11 +114,11 @@ static void on_realize(GtkGLArea *area) {
 		angle = i * 2.0f * M_PI / (num_segments - 1);
 		nextAngle = (i+1) * 2.0f * M_PI / (num_segments - 1);
 
-		circle_vertices[i*6 + 0] = cos(angle) * 20;
-		circle_vertices[i*6 + 1] = sin(angle) * 20;
+		circle_vertices[i*6 + 0] = cos(angle) * ball.r;
+		circle_vertices[i*6 + 1] = sin(angle) * ball.r;
 
-		circle_vertices[i*6 + 2] = cos(nextAngle) * 20;
-		circle_vertices[i*6 + 3] = sin(nextAngle) * 20;
+		circle_vertices[i*6 + 2] = cos(nextAngle) * ball.r;
+		circle_vertices[i*6 + 3] = sin(nextAngle) * ball.r;
 
 		circle_vertices[i*6 + 4] = 0.0f;
 		circle_vertices[i*6 + 5] = 0.0f;
@@ -122,13 +134,18 @@ static void on_realize(GtkGLArea *area) {
 		GL_STATIC_DRAW
 	);
 
+    // Set paddle dimensions
+    paddle.width = 50.0f;
+    paddle.height = 7.0f;
+
+    // Set paddle vertices
 	GLfloat paddle_vertices[] = {
-		-50.0f, -7.0f,
-		-50.0f,  7.0f,
-		 50.0f,  7.0f,
-		 50.0f,  7.0f,
-		 50.0f, -7.0f,
-		-50.0f, -7.0f
+		-paddle.width, -paddle.height,
+		-paddle.width,  paddle.height,
+		 paddle.width,  paddle.height,
+		 paddle.width,  paddle.height,
+		 paddle.width, -paddle.height,
+		-paddle.width, -paddle.height
 	};
 
 	glGenBuffers(1, &paddle.vbo);
@@ -189,24 +206,32 @@ static void on_realize(GtkGLArea *area) {
 	glUniformMatrix4fv(uniform_ortho, 1, GL_FALSE, orthograph);
 	g_timeout_add(20, on_idle, (void*)area);
 	
-    // Start Ball off moving
+    // Set ball's speed
 	ball.dx = 2.0f;
 	ball.dy = 3.0f;
+    // Set ball position
     ball.pos[0] = 50.0f;
     ball.pos[1] = 50.0f;
     ball.pos[2] = 0.0f;
+    // Set ball colour
     ball.colour[0] = 0.0f;
     ball.colour[1] = 1.0f;
     ball.colour[2] = 0.0f;
 
-    // Paddle Pos
-    paddle.dx = 2.0f;
+    // Set Paddle's speed
+    paddle.dx = 3.0f;
+    // Set Paddle position
     paddle.pos[0] = WIDTH / 2.0f;
     paddle.pos[1] = 20.0f;
     paddle.pos[2] = 0.0f;
+    // Set paddle colour
     paddle.colour[0] = 0.0f;
     paddle.colour[1] = 0.0f;
-    paddle.colour[2] = 1.0f;
+    paddle.colour[2] = 0.0f;
+
+    //Disable paddle movement
+    paddle.key_left = FALSE;
+    paddle.key_right = FALSE;
 }
 
 
@@ -251,9 +276,11 @@ static void on_render(GtkGLArea *area, GdkGLContext *context) {
 }
 
 static gboolean on_idle(gpointer data) {
+    // Start ball moving
     ball.pos[0] += ball.dx;
     ball.pos[1] += ball.dy;
 
+    // Ball-Window Collision
     if (ball.pos[0] > WIDTH) {
         ball.pos[0] = WIDTH;
         ball.dx *= -1;
@@ -261,7 +288,6 @@ static gboolean on_idle(gpointer data) {
         ball.pos[0] = 0;
         ball.dx *= -1;
     }
-
     if (ball.pos[1] > HEIGHT) {
         ball.pos[1] = HEIGHT;
         ball.dy *= -1;
@@ -270,6 +296,71 @@ static gboolean on_idle(gpointer data) {
         ball.dy *= -1;
     }
 
+    // Keyboard Input
+    if(paddle.key_left) {
+		paddle.pos[0] -= paddle.dx;
+	}
+
+	if(paddle.key_right) {
+		paddle.pos[0] += paddle.dx;
+	}
+
+    // Paddle-Window Collision
+	if(paddle.pos[0] < 0) {
+		paddle.pos[0] = 0.0f;
+	} else if(paddle.pos[0] > WIDTH) {
+		paddle.pos[0] = WIDTH;
+	}
+
+    // Paddle-Ball Collision
+    ball.left = ball.pos[0] > paddle.pos[0] - paddle.width;
+    ball.right = ball.pos[0] < paddle.pos[0] + paddle.width;
+	ball.top = ball.pos[1] < paddle.pos[1] + paddle.height;
+	ball.bottom = ball.pos[1] > paddle.pos[1] - paddle.height;
+
+	if(ball.dy < 0 && ball.left && ball.right && ball.top && ball.bottom) {
+		ball.dy *= -1.05;
+	}
+
     gtk_widget_queue_draw(GTK_WIDGET(data));
     return TRUE;
+}
+
+/*
+    Purpose:    Called when a key is pressed
+    Params:
+    Returns:
+*/
+static gboolean on_keydown(GtkWidget *widget, GdkEventKey *event) {
+    switch (event->keyval)
+    {
+        // Left key down
+        case GDK_KEY_Left:
+            paddle.key_left = TRUE;
+            break;
+        // Right key down
+        case GDK_KEY_Right:
+            paddle.key_right = TRUE;
+            break;
+    }
+}
+
+
+/*
+    Purpose:    Called when a key is lifted
+    Params:
+    Returns:
+*/
+static gboolean on_keyup(GtkWidget *widget, GdkEventKey *event) {
+
+	switch(event->keyval) {
+        // Left Key up
+		case GDK_KEY_Left:
+			paddle.key_left = FALSE;
+		break;
+        // Right key up
+		case GDK_KEY_Right:
+			paddle.key_right = FALSE;
+		break;
+	}
 }
