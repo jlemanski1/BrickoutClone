@@ -6,6 +6,7 @@
 
 #define WIDTH 640.0f
 #define HEIGHT 480.0f
+#define MAXBRICK 36
 
 // Function Prototypes
 static void on_realize(GtkGLArea*area);
@@ -48,8 +49,9 @@ struct {
 struct {
     float width;
     float height;
-    mat4 mvp[36];   // 36 bricks, 6 x 6
-    vec3 pos[36];   // pos for each brick
+    mat4 mvp[MAXBRICK];   // 36 bricks, 6 x 6
+    vec3 pos[MAXBRICK];   // pos for each brick
+    gboolean on[MAXBRICK];// Whether bricks are broken or not
     vec3 colour[6]; // Colour for each row
     GLuint vbo;
 } bricks;
@@ -314,6 +316,7 @@ static void on_realize(GtkGLArea *area) {
 			bricks.pos[i][0] = (float)x;
 			bricks.pos[i][1] = (float)y;
 			bricks.pos[i][2] = 0.0f;
+            bricks.on[i] = TRUE;
 			mat4_translate(bricks.pos[i], bricks.mvp[i]);
 		}
 	}
@@ -379,6 +382,11 @@ static void on_render(GtkGLArea *area, GdkGLContext *context) {
 		glUniform3fv(uniform_colour, 1, bricks.colour[y]);
 		for(x = 0; x < 6; x++) {
 			i = y* 6 + x;
+
+            if (!bricks.on[i]) {
+                continue;
+            }
+
 			glUniformMatrix4fv(uniform_mvp, 1, GL_FALSE, bricks.mvp[i]);
 			glDrawArrays(GL_TRIANGLES, 0, 3 * 2);
 		}
@@ -393,11 +401,32 @@ static void on_render(GtkGLArea *area, GdkGLContext *context) {
     Returns:
 */
 static gboolean on_idle(gpointer data) {
+    // Ball-Brick Collision
+    for(int i = 0; i < MAXBRICK; i++)
+    {
+        if (!bricks.on[i]) {
+            continue;
+        }
+		ball.left = ball.pos[0] - ball.r > bricks.pos[i][0] - bricks.width;
+		ball.right = ball.pos[0] + ball.r < bricks.pos[i][0] + bricks.width;
+
+		ball.bottom = ball.pos[1] - ball.r > bricks.pos[i][1] - bricks.width;
+		ball.top = ball.pos[1] + ball.r < bricks.pos[i][1] + bricks.width;
+
+		if(ball.left && ball.right && ball.top && ball.bottom) {
+			bricks.on[i] = FALSE;
+			ball.dy *= -1.025;
+		}
+
+	}
+    
+
     // Start ball moving
     ball.pos[0] += ball.dx;
     ball.pos[1] += ball.dy;
 
     // Ball-Window Collision
+    // TODO: Ball-window bottom collision
     if (ball.pos[0] > WIDTH) {
         ball.pos[0] = WIDTH;
         ball.dx *= -1;
