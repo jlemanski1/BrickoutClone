@@ -14,7 +14,9 @@ static gboolean on_idle(gpointer data);
 static gboolean on_keydown(GtkWidget *widget, GdkEventKey *event);
 static gboolean on_keyup(GtkWidget *widget, GdkEventKey *event);
 
+// ------------ //
 // Ball
+// ------------ //
 struct {
     float dx, dy;   // delta x, delta y
     float r;        // Radius
@@ -25,7 +27,9 @@ struct {
     gboolean left, right, top, bottom;
 } ball;
 
+// ------------ //
 // Paddle
+// ------------ //
 struct {
     float width;    // Paddle width
     float height;   // Paddle Height
@@ -38,11 +42,29 @@ struct {
     gboolean key_right;
 } paddle;
 
+// ------------ //
+// Bricks
+// ------------ //
+struct {
+    float width;
+    float height;
+    mat4 mvp[6];
+    vec3 pos[6];
+    vec3 colour;
+    GLuint vbo;
+} bricks;
+
 GLuint program;
 GLuint vao;
 GLint attribute_coord2d;
 GLint uniform_mvp, uniform_colour;
 
+
+/*
+    Purpose:
+    Params:
+    Returns:
+*/
 int main(int argc, char *argv[]) {
     GtkWidget *window;
     GtkWidget *glArea;
@@ -75,6 +97,11 @@ int main(int argc, char *argv[]) {
 }
 
 
+/*
+    Purpose:
+    Params:
+    Returns:
+*/
 static void on_realize(GtkGLArea *area) {
 
 	// Debug Message
@@ -157,9 +184,27 @@ static void on_realize(GtkGLArea *area) {
 		GL_STATIC_DRAW
 	);
 
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(0);
-	glDisableVertexAttribArray(0);
+    // Set brick dimensions
+    bricks.width = 51.0f;
+    bricks.height = 13.0f;
+
+    GLfloat bricks_vertices[] = {
+        -bricks.width, -bricks.height,
+		-bricks.width,  bricks.height,
+		 bricks.width,  bricks.height,
+		 bricks.width,  bricks.height,
+		 bricks.width, -bricks.height,
+		-bricks.width, -bricks.height
+    };
+
+    glGenBuffers(1, &bricks.vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, bricks.vbo);
+	glBufferData(
+		GL_ARRAY_BUFFER,
+		sizeof(bricks_vertices),
+		bricks_vertices,
+		GL_STATIC_DRAW
+	);
 	
     // Declare pointer to shaders
 	const char *vs = "shaders/vertex.glsl";
@@ -232,9 +277,29 @@ static void on_realize(GtkGLArea *area) {
     //Disable paddle movement
     paddle.key_left = FALSE;
     paddle.key_right = FALSE;
+
+    //Set brick colour
+    bricks.colour[0] = 1.0f;
+    bricks.colour[1] = 0.0f;
+    bricks.colour[2] = 0.0f;
+
+    vec3 pos;
+    for(int i = 0; i < 6; i++)
+    {
+        bricks.pos[i][0] = (4.0f + bricks.width) * (i + 1) + bricks.width * i;
+        bricks.pos[i][1] = HEIGHT - (4.0f + bricks.height);
+        bricks.pos[i][2] = 0.0f;
+        mat4_translate(bricks.pos[i], bricks.mvp[i]);
+    }
+    
 }
 
 
+/*
+    Purpose:
+    Params:
+    Returns:
+*/
 static void on_render(GtkGLArea *area, GdkGLContext *context) {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -272,9 +337,34 @@ static void on_render(GtkGLArea *area, GdkGLContext *context) {
     );
 
     glDrawArrays(GL_TRIANGLES, 0, 3 * 2);
+
+    glUniform3fv(uniform_colour, 1, bricks.colour);
+
+    glBindBuffer(GL_ARRAY_BUFFER, bricks.vbo);
+    glVertexAttribPointer(
+        attribute_coord2d,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        0,
+        0
+    );
+
+    for(int i = 0; i < 6; i++)
+    {
+        glUniformMatrix4fv(uniform_mvp, 1, GL_FALSE, bricks.mvp[i]);
+        glDrawArrays(GL_TRIANGLES, 0, 3 * 2);
+    }
+
 	glDisableVertexAttribArray(attribute_coord2d);
 }
 
+
+/*
+    Purpose:
+    Params:
+    Returns:
+*/
 static gboolean on_idle(gpointer data) {
     // Start ball moving
     ball.pos[0] += ball.dx;
