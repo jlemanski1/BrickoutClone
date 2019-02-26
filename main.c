@@ -48,9 +48,9 @@ struct {
 struct {
     float width;
     float height;
-    mat4 mvp[6];
-    vec3 pos[6];
-    vec3 colour;
+    mat4 mvp[36];   // 36 bricks, 6 x 6
+    vec3 pos[36];   // pos for each brick
+    vec3 colour[6]; // Colour for each row
     GLuint vbo;
 } bricks;
 
@@ -278,19 +278,45 @@ static void on_realize(GtkGLArea *area) {
     paddle.key_left = FALSE;
     paddle.key_right = FALSE;
 
-    //Set brick colour
-    bricks.colour[0] = 1.0f;
-    bricks.colour[1] = 0.0f;
-    bricks.colour[2] = 0.0f;
+    //Set colours of each brick row
+	bricks.colour[0][0] = 1.0f;
+	bricks.colour[0][1] = 0.0f;
+	bricks.colour[0][2] = 0.0f;
+	
+	bricks.colour[1][0] = 249.0 / 255.0;
+	bricks.colour[1][1] = 159.0 / 255.0;
+	bricks.colour[1][2] = 2.0 / 255.0f;
 
-    vec3 pos;
-    for(int i = 0; i < 6; i++)
-    {
-        bricks.pos[i][0] = (4.0f + bricks.width) * (i + 1) + bricks.width * i;
-        bricks.pos[i][1] = HEIGHT - (4.0f + bricks.height);
-        bricks.pos[i][2] = 0.0f;
-        mat4_translate(bricks.pos[i], bricks.mvp[i]);
-    }
+	bricks.colour[2][0] = 1.0f;
+	bricks.colour[2][1] = 1.0f;
+	bricks.colour[2][2] = 0.0f;
+
+	bricks.colour[3][0] = 0.0f;
+	bricks.colour[3][1] = 1.0f;
+	bricks.colour[3][2] = 0.0f;
+
+	bricks.colour[4][0] = 0.0f;
+	bricks.colour[4][1] = 0.0f;
+	bricks.colour[4][2] = 1.0f;
+
+	bricks.colour[5][0] = 130.0 / 255.0;
+	bricks.colour[5][1] = 0.0f;
+	bricks.colour[5][2] = 249.0 / 255.0;
+
+	vec3 pos;
+	int row, col, x, y;
+	for(row = 0; row < 6; row++) {
+		for(col = 0; col < 6; col++) {
+			i = row* 6 + col;
+			x = (4.0f + bricks.width) * (1 + col) + bricks.width * col;
+			y = HEIGHT - ((4.0f + bricks.height) * (1 + row) + bricks.height * row);
+
+			bricks.pos[i][0] = (float)x;
+			bricks.pos[i][1] = (float)y;
+			bricks.pos[i][2] = 0.0f;
+			mat4_translate(bricks.pos[i], bricks.mvp[i]);
+		}
+	}
     
 }
 
@@ -338,24 +364,25 @@ static void on_render(GtkGLArea *area, GdkGLContext *context) {
 
     glDrawArrays(GL_TRIANGLES, 0, 3 * 2);
 
-    glUniform3fv(uniform_colour, 1, bricks.colour);
+	glBindBuffer(GL_ARRAY_BUFFER, bricks.vbo);
+	glVertexAttribPointer(
+		attribute_coord2d,
+		2,
+		GL_FLOAT,
+		GL_FALSE,
+		0,
+		0
+	);
 
-    glBindBuffer(GL_ARRAY_BUFFER, bricks.vbo);
-    glVertexAttribPointer(
-        attribute_coord2d,
-        2,
-        GL_FLOAT,
-        GL_FALSE,
-        0,
-        0
-    );
-
-    for(int i = 0; i < 6; i++)
-    {
-        glUniformMatrix4fv(uniform_mvp, 1, GL_FALSE, bricks.mvp[i]);
-        glDrawArrays(GL_TRIANGLES, 0, 3 * 2);
-    }
-
+	int i, x, y;
+	for(y = 0; y < 6; y++) {
+		glUniform3fv(uniform_colour, 1, bricks.colour[y]);
+		for(x = 0; x < 6; x++) {
+			i = y* 6 + x;
+			glUniformMatrix4fv(uniform_mvp, 1, GL_FALSE, bricks.mvp[i]);
+			glDrawArrays(GL_TRIANGLES, 0, 3 * 2);
+		}
+	}
 	glDisableVertexAttribArray(attribute_coord2d);
 }
 
