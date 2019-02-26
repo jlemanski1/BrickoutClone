@@ -12,13 +12,21 @@ static void on_realize(GtkGLArea*area);
 static void on_render(GtkGLArea *area, GdkGLContext *context);
 static gboolean on_idle(gpointer data);
 
-// Ball Struct
+// Ball
 struct {
     float dx, dy;
     vec3 pos;
     mat4 mvp;
-    GLuint vbo_circle;
+    GLuint vbo;
 } ball;
+
+// Paddle
+struct {
+    float dx;
+    vec3 pos;
+    mat4 mvp;
+    GLuint vbo;
+} paddle;
 
 GLuint program;
 GLuint vao;
@@ -103,12 +111,30 @@ static void on_realize(GtkGLArea *area) {
 
 	}
 
-	glGenBuffers(1, &ball.vbo_circle);
-	glBindBuffer(GL_ARRAY_BUFFER, ball.vbo_circle);
+	glGenBuffers(1, &ball.vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, ball.vbo);
 	glBufferData(
 		GL_ARRAY_BUFFER,
 		sizeof(circle_vertices),
 		circle_vertices,
+		GL_STATIC_DRAW
+	);
+
+	GLfloat paddle_vertices[] = {
+		-50.0f, -7.0f,
+		-50.0f,  7.0f,
+		 50.0f,  7.0f,
+		 50.0f,  7.0f,
+		 50.0f, -7.0f,
+		-50.0f, -7.0f
+	};
+
+	glGenBuffers(1, &paddle.vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, paddle.vbo);
+	glBufferData(
+		GL_ARRAY_BUFFER,
+		sizeof(paddle_vertices),
+		paddle_vertices,
 		GL_STATIC_DRAW
 	);
 
@@ -158,6 +184,12 @@ static void on_realize(GtkGLArea *area) {
     ball.pos[1] = 50.0f;
     ball.pos[2] = 0.0f;
 
+    // Paddle Pos
+    paddle.dx = 2.0f;
+    paddle.pos[0] = WIDTH / 2.0f;
+    paddle.pos[1] = 20.0f;
+    paddle.pos[2] = 0.0f;
+
 }
 
 
@@ -170,7 +202,7 @@ static void on_render(GtkGLArea *area, GdkGLContext *context) {
 	glBindVertexArray(vao);
 	glEnableVertexAttribArray(attribute_coord2d);
 
-	glBindBuffer(GL_ARRAY_BUFFER, ball.vbo_circle);
+	glBindBuffer(GL_ARRAY_BUFFER, ball.vbo);
 	glVertexAttribPointer(
 		attribute_coord2d,
 		2,
@@ -181,6 +213,21 @@ static void on_render(GtkGLArea *area, GdkGLContext *context) {
 	);
 
 	glDrawArrays(GL_TRIANGLES, 0, 3 * 100);
+
+    mat4_translate(paddle.pos, paddle.mvp);
+    glUniformMatrix4fv(uniform_mvp, 1, GL_FALSE, paddle.mvp);
+
+    glBindBuffer(GL_ARRAY_BUFFER, paddle.vbo);
+    glVertexAttribPointer(
+        attribute_coord2d,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        0,
+        0
+    );
+
+    glDrawArrays(GL_TRIANGLES, 0, 3 * 2);
 	glDisableVertexAttribArray(attribute_coord2d);
 }
 
