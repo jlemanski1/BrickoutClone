@@ -25,6 +25,7 @@ struct {
     vec3 colour;  // Colour
     mat4 mvp;     
     GLuint vbo;
+	bool dead;	   // Ball dies when collides with floor
     gboolean left, right, top, bottom;
 } ball;
 
@@ -37,6 +38,7 @@ struct {
     float dx;       // delta x
     vec3 pos;     // Position
     vec3 colour;  // Colour
+	int score;	   // Player's score
     mat4 mvp;
     GLuint vbo;
     gboolean key_left;
@@ -253,7 +255,11 @@ static void on_realize(GtkGLArea *area) {
 	glUniformMatrix4fv(uniform_ortho, 1, GL_FALSE, orthograph);
 	g_timeout_add(20, on_idle, (void*)area);
 	
+	// Set player's score
+	paddle.score = 0;
+
     // Set ball's speed
+	ball.dead = FALSE;
 	ball.dx = 2.0f;
 	ball.dy = 3.0f;
     // Set ball position
@@ -330,6 +336,10 @@ static void on_realize(GtkGLArea *area) {
     Returns:
 */
 static void on_render(GtkGLArea *area, GdkGLContext *context) {
+	// Ball is dead, set BG to black to hide the paddle
+	if (ball.dead) {
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	}
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	mat4_translate(ball.pos, ball.mvp);
@@ -414,8 +424,10 @@ static gboolean on_idle(gpointer data) {
 		ball.top = ball.pos[1] + ball.r < bricks.pos[i][1] + bricks.width;
 
 		if(ball.left && ball.right && ball.top && ball.bottom) {
-			bricks.on[i] = FALSE;
-			ball.dy *= -1.025;
+			bricks.on[i] = FALSE;	// Disable brick
+			ball.dy *= -1.025;		// Speed up ball
+			paddle.score += (100 * ABS(ball.dy));	// Add to score
+			printf("Score: %d\n", paddle.score);
 		}
 
 	}
@@ -426,7 +438,6 @@ static gboolean on_idle(gpointer data) {
     ball.pos[1] += ball.dy;
 
     // Ball-Window Collision
-    // TODO: Ball-window bottom collision
     if (ball.pos[0] > WIDTH) {
         ball.pos[0] = WIDTH;
         ball.dx *= -1;
@@ -437,9 +448,15 @@ static gboolean on_idle(gpointer data) {
     if (ball.pos[1] > HEIGHT) {
         ball.pos[1] = HEIGHT;
         ball.dy *= -1;
+	// Ball-WindowBottom Collision
     } else if (ball.pos[1] < 0) {
+		printf("GAME OVER: Ball collided with bottom\n");	//DEBUG MESSAGE
+		// Freeze ball
         ball.pos[1] = 0;
-        ball.dy *= -1;
+        ball.dy = 0;
+		ball.dx = 0;
+		// Mark ball as dead
+		ball.dead = TRUE;
     }
 
     // Keyboard Input
