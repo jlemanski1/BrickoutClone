@@ -16,6 +16,7 @@ static gboolean on_idle(gpointer data);
 struct {
     float dx, dy;
     vec3 pos;
+    vec3 colour;
     mat4 mvp;
     GLuint vbo;
 } ball;
@@ -24,6 +25,7 @@ struct {
 struct {
     float dx;
     vec3 pos;
+    vec3 colour;
     mat4 mvp;
     GLuint vbo;
 } paddle;
@@ -31,7 +33,7 @@ struct {
 GLuint program;
 GLuint vao;
 GLint attribute_coord2d;
-GLint uniform_mvp;
+GLint uniform_mvp, uniform_colour;
 
 int main(int argc, char *argv[]) {
 
@@ -155,6 +157,7 @@ static void on_realize(GtkGLArea *area) {
 		return;
 	}
 
+    // Orthogonal Matrix
 	const char *uniform_name = "orthograph";
 	GLint uniform_ortho = glGetUniformLocation(program, uniform_name);
 	if(uniform_ortho == -1) {
@@ -162,12 +165,21 @@ static void on_realize(GtkGLArea *area) {
 		return;
 	}
 	
+    // Model Position Matrix
 	uniform_name = "mvp";
 	uniform_mvp = glGetUniformLocation(program, uniform_name);
 	if(uniform_mvp == -1) {
 		fprintf(stderr, "Could not bind uniform %s\n", uniform_name);
 		return;
 	}
+
+    // Colour Matrix
+    uniform_name = "colour";
+    uniform_colour = glGetUniformLocation(program, uniform_name);
+    if (uniform_colour == -1) {
+        fprintf(stderr, "Could not bind uniform %s\n", uniform_name);
+        return;
+    }
 
 	glUseProgram(program);
 
@@ -183,13 +195,18 @@ static void on_realize(GtkGLArea *area) {
     ball.pos[0] = 50.0f;
     ball.pos[1] = 50.0f;
     ball.pos[2] = 0.0f;
+    ball.colour[0] = 0.0f;
+    ball.colour[1] = 1.0f;
+    ball.colour[2] = 0.0f;
 
     // Paddle Pos
     paddle.dx = 2.0f;
     paddle.pos[0] = WIDTH / 2.0f;
     paddle.pos[1] = 20.0f;
     paddle.pos[2] = 0.0f;
-
+    paddle.colour[0] = 0.0f;
+    paddle.colour[1] = 0.0f;
+    paddle.colour[2] = 1.0f;
 }
 
 
@@ -198,6 +215,7 @@ static void on_render(GtkGLArea *area, GdkGLContext *context) {
 
 	mat4_translate(ball.pos, ball.mvp);
 	glUniformMatrix4fv(uniform_mvp, 1, GL_FALSE, ball.mvp);
+    glUniform3fv(uniform_colour, 1, ball.colour);
 
 	glBindVertexArray(vao);
 	glEnableVertexAttribArray(attribute_coord2d);
@@ -216,6 +234,7 @@ static void on_render(GtkGLArea *area, GdkGLContext *context) {
 
     mat4_translate(paddle.pos, paddle.mvp);
     glUniformMatrix4fv(uniform_mvp, 1, GL_FALSE, paddle.mvp);
+    glUniform3fv(uniform_colour, 1, paddle.colour);
 
     glBindBuffer(GL_ARRAY_BUFFER, paddle.vbo);
     glVertexAttribPointer(
